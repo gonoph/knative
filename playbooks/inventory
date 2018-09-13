@@ -1,7 +1,11 @@
 [minishift:vars]
-# minishift_vm_driver=virtualbox
-minishift_memory=5GB
+minishift_vmDriver=generic
+# minishift_memory=5GB
 # minishift_isoUrl=https://zfs1.virt.gonoph.net/pulp/content/isos/minishift-centos7.iso
+minishift_remoteIpaddress=54.89.169.34
+minishift_remoteSshUser=centos
+minishift_remoteSshKey=~/.ssh/id_rsa.ansible
+minishift_natnat=True
 
 [minishift]
 localhost

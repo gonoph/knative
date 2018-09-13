@@ -1,0 +1,131 @@
+# vim: ts=2 sw=2 expandtab ai
+---
+
+- name: Ensure needed packages are there
+  delegate_to: "{{ minishift_remoteIpaddress }}"
+  connection: smart
+  become: true
+  yum:
+    name: "{{ minishift_generic_packages }}"
+    state: installed
+
+- name: Ensure services are running
+  delegate_to: "{{ minishift_remoteIpaddress }}"
+  connection: smart
+  become: true
+  systemd:
+    name: "{{ item }}"
+    enabled: true
+    state: started
+  with_items:
+    - docker
+    - firewalld
+
+- name: ensure docker group exists
+  delegate_to: "{{ minishift_remoteIpaddress }}"
+  connection: smart
+  become: true
+  group:
+    name: docker
+    state: present
+    system: true
+  register: docker_group
+
+- name: ensure minishift_remoteSshUser is in docker group
+  delegate_to: "{{ minishift_remoteIpaddress }}"
+  connection: smart
+  become: true
+  user:
+    append: true
+    groups: docker
+    name: "{{ minishift_remoteSshUser }}"
+
+- name: restart docker if needed
+  delegate_to: "{{ minishift_remoteIpaddress }}"
+  connection: smart
+  become: true
+  systemd:
+    name: docker
+    state: restarted
+  when: docker_group is changed
+
+- name: enable https service
+  delegate_to: "{{ minishift_remoteIpaddress }}"
+  connection: smart
+  become: true
+  firewalld:
+    service: https
+    permanent: true
+    immediate: true
+    state: enabled
+
+- name: enable natnat if needed
+  delegate_to: "{{ minishift_remoteIpaddress }}"
+  connection: smart
+  become: true
+  when: minishift_natnat == true
+  register: cmd
+  command: |
+    firewall-cmd --permanent --direct --add-rule ipv4 nat OUTPUT 0 --dst {{ minishift_remoteIpaddress | ipaddr('host') }} -p tcp -m tcp --match multiport --dports 1:65535 -j REDIRECT
+  changed_when: |
+    'ALREADY_ENABLED' not in cmd.stderr
+
+- name: get list of LISTEN ports
+  delegate_to: "{{ minishift_remoteIpaddress }}"
+  connection: smart
+  changed_when: false
+  shell: |
+    netstat -na | grep 'LISTEN\W' | tr -s ' ' | cut -d ' ' -f 4 | rev | cut -d: -f 1 | rev | sort -un
+  register: listen_ports
+
+- set_fact:
+    listen_ports: "{{ listen_ports.stdout_lines | map('int') | list }}"
+
+- debug:
+    var: listen_ports
+
+- name: ensure something is listening on our ports
+  delegate_to: "{{ minishift_remoteIpaddress }}"
+  connection: smart
+  become: true
+  command: "python -m SimpleHTTPServer {{ item }}"
+  when: item not in listen_ports
+  async: 60
+  poll: 0
+  with_items:
+    - 8443
+    - 443
+    - 80
+    - 2376
+
+- name: check that cluster can see ports
+  delegate_to: "{{ minishift_remoteIpaddress }}"
+  connection: smart
+  wait_for:
+    host: "{{ minishift_remoteIpaddress }}"
+    port: "{{ item }}"
+    timeout: 5
+    msg: "it doesn't look like remote cluster is able to see itself for port: {{ item }}"
+  with_items:
+    - 8443
+    - 443
+    - 80
+    - 2376
+
+- name: check that local host can see ports
+  wait_for:
+    host: "{{ minishift_remoteIpaddress }}"
+    port: "{{ item }}"
+    timeout: 5
+    msg: "looks like you need to open the external firewall for port: {{ item }}"
+  with_items:
+    - 8443
+    - 443
+    - 80
+    - 2376
+
+- name: ensure the simple server is gone
+  delegate_to: "{{ minishift_remoteIpaddress }}"
+  connection: smart
+  become: true
+  command: pkill -ef SimpleHTTPServer

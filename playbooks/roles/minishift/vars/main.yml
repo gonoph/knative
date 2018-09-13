@@ -1,3 +1,22 @@
 # vim: ts=2 sw=2 expandtab ai
 ---
 minishift_min_version: "1.23.0+91235ee"
+minishift_config_options:
+  - name: memory
+    value: "{{ minishift_memory }}"
+  - name: cpus
+    value: "{{ minishift_cpus }}"
+  - name: image-caching
+    value: "{{ minishift_imageCaching }}"
+  - name: iso-url
+    value: "{{ minishift_isoUrl }}"
+  - name: vm-driver
+    value: "{{ minishift_vmDriver }}"
+  - name:  remote-ipaddress
+    value: "{{ minishift_remoteIpaddress }}"
+  - name: remote-ssh-user
+    value: "{{ minishift_remoteSshUser }}"
+  - name: remote-ssh-key
+    value: "{{ minishift_remoteSshKey }}"
+
+minishift_generic_packages: vim,docker,firewalld

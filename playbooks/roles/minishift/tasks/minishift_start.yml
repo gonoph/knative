@@ -1,9 +1,5 @@
 # vim: ts=2 sw=2 expandtab ai
 ---
-- name: ensure log dir exists
-  file:
-    path: "{{ minishift_log_dir }}"
-    state: directory
 
 - name: "check for profile: {{ minishift_profile }}"
   shell: |
@@ -19,21 +15,13 @@
 
 - name: set config
   shell: |
-    CPUS=$(minishift config get {{ item.name }} | sed 's/^<nil>$//')
-    test "x$CPUS" == "x{{ item.value }}" && echo "" || {{ command }}
+    CONFIG=$(minishift config get {{ item.name }} | sed 's/^<nil>$//')
+    test "x$CONFIG" == "x{{ item.value }}" || ({{ command }} && echo 'changed')
   register: cmd
   changed_when: cmd.stdout | length > 0
   vars:
     command: "{{ (item.value | length > 0) | ternary('minishift config set '+item.name+' '+item.value,'minishift config unset '+item.name) }}"
-  with_items:
-    - name: memory
-      value: "{{ minishift_memory }}"
-    - name: cpus
-      value: "{{ minishift_cpus }}"
-    - name: image-caching
-      value: "{{ minishift_imageCaching }}"
-    - name: iso-url
-      value: "{{ minishift_isoUrl }}"
+  with_items: "{{ minishift_config_options }}"
   notify:
     - minishift stop
     - minishift delete
@@ -56,6 +44,8 @@
     - minishift stop
     - minishift delete
     - minishift start
+
+- include: minishift_prepare_generic.yml
 
 - name: Ensure minishift starts
   command: "true"

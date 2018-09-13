@@ -9,3 +9,8 @@ minishift_addons: admin-user,anyuid
 minishift_log_dir: /tmp/minishift_logs
 minishift_log_dir_console: "{{ minishift_log_dir }}/console.log"
 minishift_user: docker
+minishift_vmDriver: ''
+minishift_remoteIpaddress: ''
+minishift_remoteSshUser: ''
+minishift_remoteSshKey: "{{ '~/.ssh/id_rsa' | realpath }}"
+minishift_natnat: false

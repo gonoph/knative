@@ -12,3 +12,5 @@
 
 - name: minishift start
   shell: "minishift --log_dir {{ minishift_log_dir }} start | tee {{ minishift_log_dir_console }}"
+  register: minishift_start
+  failed_when: "minishift_start.rc != 0 or 'FAIL' in (minishift_start.stdout_lines[-10:] | join('\n'))"

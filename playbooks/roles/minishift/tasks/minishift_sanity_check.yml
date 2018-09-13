@@ -1,0 +1,80 @@
+# vim: ts=2 sw=2 expandtab ai
+---
+- name: ensure log dir exists
+  file:
+    path: "{{ minishift_log_dir }}"
+    state: directory
+
+- assert:
+    msg:
+      - "minishift_vmDriver == generic should have the following defined:"
+      - "minishift_remoteIpaddress - the remote address of the generic host"
+      - "minishift_remoteSshUser - the ssh user for the generic host"
+      - "minishift_remoteSshKey - the local location of the sshkey"
+    that:
+      - minishift_remoteIpaddress | length > 0
+      - minishift_remoteIpaddress | ipaddr
+      - minishift_remoteSshUser | length > 0
+      - minishift_remoteSshKey | length > 0
+  when: minishift_vmDriver == 'generic'
+
+- assert:
+    msg:
+      - "The following should not be set if minishift_vmDriver != 'generic'"
+      - "minishift_remoteIpaddress - the remote address of the generic host"
+      - "minishift_remoteSshUser - the ssh user for the generic host"
+    that:
+      - minishift_remoteIpaddress | length == 0
+      - minishift_remoteSshUser | length == 0
+  when: minishift_vmDriver != 'generic'
+
+- name: expand and validate varibles
+  when: minishift_vmDriver == 'generic'
+  set_fact:
+    minishift_remoteSshKey: "{{ minishift_remoteSshKey | expanduser | realpath }}"
+    ansible_ssh_common_args: "-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
+
+- name: "add cluster host [generic]"
+  when: minishift_vmDriver == 'generic'
+  add_host:
+    name: "{{ minishift_remoteIpaddress }}"
+    groups:
+      - generic
+    ansible_user: "{{ minishift_remoteSshUser }}"
+    ansible_ssh_private_key_file: "{{ minishift_remoteSshKey }}"
+    ansible_host: "{{ minishift_remoteIpaddress }}"
+    ansible_ssh_common_args: "-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
+
+- name: can we read minishift_remoteSshKey
+  when: minishift_vmDriver == 'generic'
+  stat:
+    path: "{{ minishift_remoteSshKey }}"
+  register: sshkey_stat
+
+- name: "minishift_remoteSshKey must be readable and non-empty"
+  assert:
+    msg:
+      - "minishift_remoteSshKey must be readable and non-empty"
+      - "{{ minishift_remoteSshKey }}"
+    that:
+      - sshkey_stat.stat.exists
+      - sshkey_stat.stat.readable
+      - sshkey_stat.stat.size > 0
+  when: minishift_vmDriver == 'generic'
+
+- name: gather facts
+  setup:
+  delegate_to: "{{ minishift_remoteIpaddress }}"
+  connection: smart
+  when: minishift_vmDriver == 'generic'
+
+- assert:
+    msg:
+      helpful: You probably need minishift_natnat turned on
+      remote_addr: "{{ minishift_remoteIpaddress }}"
+      host_addresses: "{{ all_ip }}"
+    that:
+      - minishift_remoteIpaddress in all_ip or minishift_natnat == true
+  vars:
+    all_ip: "{{ ansible_all_ipv4_addresses + ansible_all_ipv6_addresses }}"
+  when: minishift_vmDriver == 'generic'
